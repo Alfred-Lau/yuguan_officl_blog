@@ -7,8 +7,7 @@ module.exports = {
     node: true,
     es6: true,
   },
-  plugins: ["@typescript-eslint"],
-  extends: ["eslint:recommended", "next", "next/core-web-vitals"],
+  extends: ["next", "next/core-web-vitals"],
   parserOptions: {
     project: true,
     tsconfigRootDir: __dirname,

@@ -1,0 +1,575 @@
+---
+title: "docker"
+summary: "docker"
+date: "2023-08-05"
+lastmod: "2023-08-05"
+tags: ["服务端", "网关"]
+draft: false
+images: ["/static/images/twitter-card.png"]
+---
+
+# docker DevOps
+
+## 容器技术和docker简介
+
+## docker环境的各种搭建方法
+
+### 通过Vagrant非常方便的安装一台linux虚拟机
+
+```bash
+# mkdir centos7
+# cd cnetos7
+# vagrant init centos/7
+# vagrant up
+# vagrant ssh
+# sudo yum update
+# vagrant status
+
+# vagrant halt
+# vagrant destroy
+
+在centos上面安装docker
+
+[cnetos安装docker](https://docs.docker.com/install/linux/docker-ce/centos/)
+
+# centos7 启动docker
+
+sudo systemctl start docker
+
+```
+
+[cnetos安装docker](https://docs.docker.com/install/linux/docker-ce/centos/)
+
+### docker machine的本地使用 : vagrant 的另一种选择
+
+> 什么是docker machine ？ 是一个自动在虚拟机上安装docker engine的工具
+
+```bash
+docker-machine create demo # 通过一行命令创建一个使用docker的虚拟机    Boot2Docker ISO
+
+docker-machine ls  # 列出创建好的docker-machine
+
+连接docker server的方法：
+
+# 使用方法一：
+docker-machine ssh demo  # 进到demo机器里面
+
+# 使用方法二：
+
+~ devops> docker-machine env demo # 导出demo的环境变量
+
+# Run this command to configure your shell:
+# eval $(docker-machine env demo)
+
+这样也能连接上
+
+
+```
+
+### 在ECS/AWS上面使用docker
+
+1. 安装阿里云driver
+   [driver 下载](https://github.com/AliyunContainerService/docker-machine-driver-aliyunecs)
+
+2. 拷贝bin文件到 /usr/local/bin/
+3. 验证安装成功
+
+```bash
+
+# 使用docker-machine是为了方便创建，直接在ecs上下载安装也是可以的
+docker-machine create -d aliyunecs --help
+
+
+# 下面的方法记得选择‘按量付费’
+docker-machine create -d aliyunecs --aliyunecs-io-optimized=optimized --aliyunecs-description=aliyunecs-machine-driver --aliyunecs-instance-type=ecs.sn2.medium --aliyunecs-access-key-id=xx --aliyunecs-access-key-secret=yy  --aliyunecs-region=cn-hangzhou --aliyunecs-ssh-password=10086 docker-devops
+
+
+
+Status Code: 403 Code: Forbidden.RAM Message: User not authorized to operate on the specified resource, or this API doesn't support RAM.
+
+解决办法：在控制台的RAM授权
+
+Failed to create instance: Aliyun API Error: RequestId: FB1F011A-C63A-4447-9D65-58687CBF3864 Status Code: 403 Code: InvalidResourceType.NotSupported Message: This resource type is not supported; please try other resource types.
+
+
+```
+
+### docker playgorund
+
+## docker的镜像和容器
+
+### docker的架构和底层技术
+
+#### docker engine：基础设施之上，应用程序之下
+
+> 核心概念，具体包含
+
+- 后台进程（dockerd）
+- REST API Server
+- CLI接口（docker）
+
+### docker image 镜像
+
+#### 什么是image ？
+
+![](http://pl01jxs71.bkt.clouddn.com/%E4%BB%80%E4%B9%88%E6%98%AFimage.png)
+
+- 文件和meta data的集合 （root filesystem）
+- 分层的，并且每一层都可以添加改变删除文件，成为一个新的image
+- 不同的image可以共享相同的layer
+- image本身是只读的
+
+```bash
+# 列举本地已有的image
+docker image ls
+
+```
+
+#### docker image 怎么获取
+
+方法有二：
+
+1. docfile生成
+2. 从registry拉取,官方维护的hub，类似github
+
+```bash
+docker pull ubuntu:14.04
+```
+
+#### 创建一个自己的 base image（直接基于Linux kernel）
+
+> 为当前用户添加使用docker的权限
+
+```bash
+<!--每次docker version都需要sudo权限，通过如下方式解决-->
+sudo groupadd docker
+sudo gpasswd -a vagrnat docker
+
+退出重入
+
+```
+
+> 执行image 就是去创建一个容器container
+
+通过docfile创建自己的base image
+
+```bash
+mkdir -p base-image/hello-world
+cd base-image/hello-world
+vi hello.c
+
+sudo yum install -y gcc glibc glibc-static
+gcc -static hello.c  -o hello
+
+
+vi Dockerfile  # 注意D大写
+
+FROM scratch  # 不基于任何base image
+ADD hello /   # 添加hello
+CMD ["/hello"] # 执行命令
+
+docker build -t xiaoxiang/hello-world .
+docker image ls
+docker history xiaoxiang/hello-world:latest
+docker run xiaoxiang/hello-world  # docker run + Image = Container
+```
+
+#### 初识container
+
+- 通过Image创建（copy）
+- 在Image layer之上建立一个container layer（可读写）
+- 类比面向对象：类和实例
+- Image负责app的存储和分发，Container负责运行app
+
+```bash
+docker container ls -a  # 查看全部的container
+
+[vagrant@localhost hello-world]$ docker container ls -a
+CONTAINER ID        IMAGE                   COMMAND             CREATED             STATUS                         PORTS               NAMES
+74be44284dde        xiaoxiang/hello-world   "/hello"            11 minutes ago      Exited (13) 11 minutes ago                         determined_sinoussi
+5dde243d053c        hello-world             "/hello"            42 minutes ago      Exited (0) 42 minutes ago                          dreamy_brahmagupta
+40447e6eeb7f        hello-world             "/hello"            About an hour ago   Exited (0) About an hour ago                       condescending_yonath
+```
+
+```bash
+docker run -it centos # 交互式运行，并无退出
+
+docker -h # 查看帮助
+
+alias:
+
+docker rm <container id> # 移除一个container
+docker ps -a  # 列出所有container
+docker images # 列出所有image
+docker rmi <image id>
+docker rm $(docker container ls -aq) # 删除全部容器
+docker rm $(docker container ls -f "status=exited" -q) # 删除已退出的容器
+
+```
+
+#### 构建自己的docker image （镜像）,方式有二：
+
+```bash
+# 1. 方法一：依据container生成image
+docker container commit  # 简写为 docker commit，作用是：先依据某个Image创建一个container，做了一些变化，比如安装了一些软件等，然后依据这个container的修改生成一个image
+
+# 2. 方法二：依据dockerfile生成image
+docker image build  # 依据一个Docfile生成一个image ，简写 docker build
+```
+
+example
+
+```bash
+vagrant ssh
+docker run -it centos
+yum install -y vim
+
+
+exit
+
+[vagrant@localhost ~]$ docker ps -a
+CONTAINER ID        IMAGE                   COMMAND             CREATED             STATUS                     PORTS               NAMES
+f7260ede0e30        centos                  "/bin/bash"         3 minutes ago       Exited (0) 7 seconds ago                       reverent_ardinghelli
+2cc06dd1fcb8        centos                  "/bin/bash"         4 minutes ago       Exited (0) 4 minutes ago                       vigilant_wing
+4e1a841aba2b        centos                  "/bin/bash"         5 minutes ago       Exited (0) 5 minutes ago                       cocky_hypatia
+74be44284dde        xiaoxiang/hello-world   "/hello"            47 hours ago        Exited (13) 47 hours ago                       determined_sinoussi
+5dde243d053c        hello-world             "/hello"            47 hours ago        Exited (0) 47 hours ago                        dreamy_brahmagupta
+40447e6eeb7f        hello-world             "/hello"            2 days ago          Exited (0) 2 days ago                          condescending_yonath
+[vagrant@localhost ~]$ docker commit reverent_ardinghelli xiaoxiang/centos-vim
+sha256:f5d1fa30bb6452358cdbe2f0542e946e0db43f460cca3278e03cad9b4f9b189c
+[vagrant@localhost ~]$ docker images
+REPOSITORY              TAG                 IMAGE ID            CREATED             SIZE
+xiaoxiang/centos-vim    latest              f5d1fa30bb64        10 seconds ago      354MB
+xiaoxiang/hello-world   latest              5cd6164ce49d        47 hours ago        844kB
+centos                  latest              2d194b392dd1        2 weeks ago         195MB
+hello-world             latest              f2a91732366c        4 months ago        1.85kB
+
+[vagrant@localhost ~]$ docker run -it xiaoxiang/centos-vim
+[root@15c4682a0f03 /]# vim # 正常使用
+
+
+[vagrant@localhost ~]$ docker history 2d194b392dd1
+IMAGE               CREATED             CREATED BY                                      SIZE                COMMENT
+2d194b392dd1        2 weeks ago         /bin/sh -c #(nop)  CMD ["/bin/bash"]            0B
+<missing>           2 weeks ago         /bin/sh -c #(nop)  LABEL name=CentOS Base Im…   0B
+<missing>           2 weeks ago         /bin/sh -c #(nop) ADD file:8d83f3e2c14f39e7f…   195MB
+[vagrant@localhost ~]$ docker history f5d1fa30bb64
+IMAGE               CREATED             CREATED BY                                      SIZE                COMMENT
+f5d1fa30bb64        18 minutes ago      /bin/bash                                       158MB
+2d194b392dd1        2 weeks ago         /bin/sh -c #(nop)  CMD ["/bin/bash"]            0B
+<missing>           2 weeks ago         /bin/sh -c #(nop)  LABEL name=CentOS Base Im…   0B
+<missing>           2 weeks ago         /bin/sh -c #(nop) ADD file:8d83f3e2c14f39e7f…   195MB
+
+对比上述发现，多了一层，这一层，主要是安装vim。
+
+```
+
+上述创建image的方式并不提倡，我们一般提倡通过Dockerfile创建Image
+
+要删除Image，需要实现删除使用它的container
+
+```bash
+docker image rm image-id
+```
+
+使用Dockerfile创建image
+
+```bash
+vi Dockerfile
+docker build -t xiaoxiang/centos-vim-docfile .
+```
+
+#### Dockerfile语法梳理和最佳实践： 最佳代码案例：https://github.com/docker-library
+
+1. FROM
+
+- !尽量使用官方的image作为base image
+
+2. LABEL
+
+- 定义了image的meta data，比如作者，版本，描述 等
+- MetaData不可少
+
+3. RUN
+
+- 每次运行RUN都会生成一层，所以为了避免无用分层，合并多条命令成一行
+- 为了美观，复杂的RUN请用反斜线换行
+
+4. WORKDIR
+
+- 设定当前工作目录,如果没有会去自动创建目录
+- 使用WORKDIR，不要使用RUN cd
+- 尽量使用绝对目录
+
+5. ADD COPY
+
+- 把本地的文件添加到image当中去
+- 大部分情况，COPY优于ADD，ADD除了COPY还有额外功能（解压）
+- 添加远程文件/目录请使用curl或者wget
+
+6. ENV : 尽量使用ENV增加可维护性
+
+- 设置常量
+
+```bash
+ENV MYSQL_VERSION 5.6 # 设置常量
+RUN apt-get install -y mysql-server= "${MYSQL_VERSION}" \
+	&& rm -rf /var/lib/apt/list/*
+```
+
+7. VOLUME & EXPOSE : 存储和网络
+
+8. CMD & ENTRYPOINT
+
+example
+
+```bash
+FROM debian:stretch-slim
+
+# add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
+RUN groupadd -r mysql && useradd -r -g mysql mysql
+
+RUN apt-get update && apt-get install -y --no-install-recommends gnupg dirmngr && rm -rf /var/lib/apt/lists/*
+
+# add gosu for easy step-down from root
+ENV GOSU_VERSION 1.7
+RUN set -x \
+	&& apt-get update && apt-get install -y --no-install-recommends ca-certificates wget && rm -rf /var/lib/apt/lists/* \
+	&& wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$(dpkg --print-architecture)" \
+	&& wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$(dpkg --print-architecture).asc" \
+	&& export GNUPGHOME="$(mktemp -d)" \
+	&& gpg --keyserver ha.pool.sks-keyservers.net --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4 \
+	&& gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu \
+	&& rm -rf "$GNUPGHOME" /usr/local/bin/gosu.asc \
+	&& chmod +x /usr/local/bin/gosu \
+	&& gosu nobody true \
+	&& apt-get purge -y --auto-remove ca-certificates wget
+
+RUN mkdir /docker-entrypoint-initdb.d
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+# for MYSQL_RANDOM_ROOT_PASSWORD
+		pwgen \
+# for mysql_ssl_rsa_setup
+		openssl \
+# FATAL ERROR: please install the following Perl modules before executing /usr/local/mysql/scripts/mysql_install_db:
+# File::Basename
+# File::Copy
+# Sys::Hostname
+# Data::Dumper
+		perl \
+	&& rm -rf /var/lib/apt/lists/*
+
+RUN set -ex; \
+# gpg: key 5072E1F5: public key "MySQL Release Engineering <mysql-build@oss.oracle.com>" imported
+	key='A4A9406876FCBD3C456770C88C718D3B5072E1F5'; \
+	export GNUPGHOME="$(mktemp -d)"; \
+	gpg --keyserver ha.pool.sks-keyservers.net --recv-keys "$key"; \
+	gpg --export "$key" > /etc/apt/trusted.gpg.d/mysql.gpg; \
+	rm -rf "$GNUPGHOME"; \
+	apt-key list > /dev/null
+
+ENV MYSQL_MAJOR 5.7
+ENV MYSQL_VERSION 5.7.21-1debian9
+
+RUN echo "deb http://repo.mysql.com/apt/debian/ stretch mysql-${MYSQL_MAJOR}" > /etc/apt/sources.list.d/mysql.list
+
+# the "/var/lib/mysql" stuff here is because the mysql-server postinst doesn't have an explicit way to disable the mysql_install_db codepath besides having a database already "configured" (ie, stuff in /var/lib/mysql/mysql)
+# also, we set debconf keys to make APT a little quieter
+RUN { \
+		echo mysql-community-server mysql-community-server/data-dir select ''; \
+		echo mysql-community-server mysql-community-server/root-pass password ''; \
+		echo mysql-community-server mysql-community-server/re-root-pass password ''; \
+		echo mysql-community-server mysql-community-server/remove-test-db select false; \
+	} | debconf-set-selections \
+	&& apt-get update && apt-get install -y mysql-server="${MYSQL_VERSION}" && rm -rf /var/lib/apt/lists/* \
+	&& rm -rf /var/lib/mysql && mkdir -p /var/lib/mysql /var/run/mysqld \
+	&& chown -R mysql:mysql /var/lib/mysql /var/run/mysqld \
+# ensure that /var/run/mysqld (used for socket and lock files) is writable regardless of the UID our mysqld instance ends up having at runtime
+	&& chmod 777 /var/run/mysqld \
+# comment out a few problematic configuration values
+	&& find /etc/mysql/ -name '*.cnf' -print0 \
+		| xargs -0 grep -lZE '^(bind-address|log)' \
+		| xargs -rt -0 sed -Ei 's/^(bind-address|log)/#&/' \
+# don't reverse lookup hostnames, they are usually another container
+	&& echo '[mysqld]\nskip-host-cache\nskip-name-resolve' > /etc/mysql/conf.d/docker.cnf
+
+VOLUME /var/lib/mysql
+
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN ln -s usr/local/bin/docker-entrypoint.sh /entrypoint.sh # backwards compat
+ENTRYPOINT ["docker-entrypoint.sh"]
+
+EXPOSE 3306
+CMD ["mysqld"]
+```
+
+#### RUN & CMD & ENTRYPOINT
+
+RUN: 执行命令并创建新的Image Layer
+CMD: 设置容器启动后默认执行的命令和参数
+ENTRYPOINT: 设置容器启动时运行的命令
+
+Shell格式：
+
+```bash
+RUN apt-get install -y vim
+CMD echo "hello,  docker"
+ENTRYPOINT echo "hello docker"
+```
+
+Exec格式
+
+```bash
+RUN ["apt-get", "install", "-y", "vim"]
+CMD ["/bin/echo", "hello, docker"]
+ENTRYPOINT ["/bin/echo", "hello, docker"]
+```
+
+注意：
+shell格式的
+ENTRYPOINT echo "hello docker"
+等价于exec格式的
+ENTRYPOINT ["/bin/bash","-c", "echo hello, docker"]
+
+```bash
+docker build -t xiaoxiang/hello-world .   # 依据Dockerfile构建的运行命令
+```
+
+> CMD
+
+1. 容器启动时默认执行的命令
+2. 如果docker run指定了其他命令，CMD命令被忽略
+3. 如果定义了多个CMD，只有最后一个会执行
+
+> ENTRYPOINT
+
+1. 让容器以应用程序或者服务的形式运行，一般用来启动后台服务
+2. 不会被忽略，一定会执行
+3. 最佳实践：写一个shell脚本作为entrypoint
+
+```bash
+COPY docker-entrypoint.sh /usr/local/bin/
+ENTRYPOINT ["docker-entrypoint.sh"]
+
+EXPOSE 27017
+CMD ["mongod"]
+```
+
+#### 镜像的发布
+
+> 想要推送到docker hub，必须以自己的docker id开头，类似 lazyreduceyourintelligence/hello-world
+
+```bash
+
+# 1. docker 登录
+docker login
+
+# 2. 推送repo到远程
+docker push lazyreduceyourintelligence/hello-world:latest
+
+# 3. 拉取远程repo
+docker pull lazyreduceyourintelligence/hello-world
+
+```
+
+上面的方式并不推荐，最好的方式是：整合docker hub和github，自动化部署
+
+1.自建 docker registry： 类似私有的docker hub
+
+```bash
+
+remote-server: docker run -d -p 5000:5000 --restart always --name registry registry:2
+
+
+注意：
+- {"insecure-registries":["139.129.44.2:5000"]}  sudo vi /etc/docker/daemon.json
+- sudo vi /lib/systemd/system/docker.service  EnvironmentFile=-/etc/docker/daemon.json
+- restart docker: sudo service docker restart
+
+```
+
+2. Dockerfile 实战
+
+EXPOSE 暴露端口
+
+3. 容器的操作
+
+```bash
+- docker exec
+
+# 操作docker container
+
+docker logs/inspect container-id
+```
+
+4. 实战2
+
+```bash
+docker run -it ubuntu
+
+
+bash# apt-get update && apt-get install -y stress  # linux压测工具
+
+stress --vm 1 --verbose
+
+top # 查看docker host的资源使用情况
+
+
+> 如何向Dockerfile传参
+
+FROM ubuntu
+RUN apt-get update && apt-get install -y stress
+ENTRYPOINT ["/usr/bin/stress"]
+CMD []  # 典型方式
+
+docker run c69 --vm 1 --verbose
+
+```
+
+5. 容器的资源限制
+
+```bash
+设置内存：docker run --memory=200M c69 --vm 1 --verbose --vm-bytes 500M  #限制了内存，创建container失败
+
+设置cpu： cpu-shares
+```
+
+## docker的网络
+
+![网络的分层](http://pl01jxs71.bkt.clouddn.com/%E7%BD%91%E7%BB%9C%E7%9A%84%E5%88%86%E5%B1%82.png)
+![docker network](http://pl01jxs71.bkt.clouddn.com/docker%20network.png)
+
+### 网络基础
+
+ping 检查连通性 ping ip
+telnet 检查服务的可用性 telnet ip port
+
+有可能可以ping通，但是不能telnet，此种情况多是防火墙
+
+wireshark 工具
+
+### linux网络命名空间
+
+```bash
+
+sudo docker run -d --name test1 busybox /bin/sh -c "while true; do sleep 3600;done"
+```
+
+![不同的linux的网络命名空间](http://pl01jxs71.bkt.clouddn.com/difference%20linux%20network%20namespace.png) able to ping each other
+
+docker容器之间可以相互ping通 查看ip ：cat /etc/hosts
+
+## docker的持久化存储和数据共享
+
+## docker compose多容器部署
+
+## 容器编排 docker swarm
+
+## devops初体验
+
+## 容器编排 kubernetes
+
+## 容器的运维和监控
+
+## Docker+DevOps实战——过程和工具

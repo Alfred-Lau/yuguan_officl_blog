@@ -1,0 +1,999 @@
+---
+title: "产品工程师应知应会的 nginx "
+date: "2023-08-05"
+lastmod: "2023-08-05"
+tags: ["服务端", "网关"]
+draft: false
+summary: "nginx, 部署, 产品工程师, 代理, 负载均衡, 静态资源, 动静分离, 代理服务, 缓存服务, HTTPS服务, Nginx架构"
+images: ["/static/images/twitter-card.png"]
+---
+
+## 前置知识
+
+### 学习环境准备:四项检查
+
+> 基于CentOS7.2，docker
+
+- 1.检查联网
+
+```bash
+ping www.baidu.com
+
+```
+
+- 2.检查yum
+
+```bash
+
+yum list| grep gcc
+
+```
+
+- 3.关闭iptables
+
+```bash
+
+iptables -L
+iptables -F
+iptables -t nat -L
+iptables -t nat -F
+
+```
+
+- 4.关闭seLinux
+
+```bash
+getenforce
+
+setenforce 0
+
+```
+
+### 安装基础包
+
+```bash
+yum -y install gcc gcc-c++ autoconf pcre pcre-devel make automake
+yum install -y zlib zlib-devel
+yum -y install wget httpd-tools vim
+```
+
+### 进入工作空间
+
+```bash
+
+cd /opt
+mkdir app backup download logs work
+
+wget nginx-stable-link
+tar -xzf file
+```
+
+## 基础
+
+<a href="#特性">特性</a>
+<a href="#目录和配置语法">目录和配置语法</a>
+<a href="#模块讲解">模块讲解</a>
+<a href="#请求限制">请求限制</a>
+<a href="#访问控制">访问控制</a>
+
+### 特性
+
+1.1. 什么是Nginx
+
+Nginx是一个开源且高性能，可靠的HTTP中间件，代理服务。
+
+1.3. Nginx特性
+
+- IO多路复用epoll（区别于select模型）
+- 轻量级（功能模块少/代码模块化）
+- CPU亲和（Affinity）:也就是把CPU的内核和Nginx的worker进程绑定在一起，这样减少切换的cache miss
+- sendfile：为什么Nginx作为静态资源处理很有优势，就是因为它直接在内核空间将file传递给socket
+
+  2.7. Nginx的快速搭建和基本参数使用
+  2.8. Nginx的目录和配置语法
+
+### 目录和配置语法
+
+```bash
+rpm -ql nginx
+
+```
+
+| 路径                           | 类型           | 作用                                       |
+| ------------------------------ | -------------- | ------------------------------------------ |
+| /etc/logrotate.d/nginx         | 配置文件       | Nginx日志轮转，用于logrotate服务的日志切割 |
+| /etc/nginx                     | 目录，配置文件 | Nginx主配置文件                            |
+| /etc/nginx/nginx.conf          | 目录，配置文件 | Nginx主配置文件                            |
+| /etc/nginx/conf.d              | 目录，配置文件 | Nginx主配置文件                            |
+| /etc/nginx/conf.d/default.conf | 目录，配置文件 | Nginx主配置文件                            |
+
+> 读取顺序：Nginx启动的时候，主要读取nginx.conf，接着会去读取default.conf文件
+
+| 路径                                        | 类型       | 作用                                       |
+| ------------------------------------------- | ---------- | ------------------------------------------ |
+| /etc/nginx/fastcgi_params                   | 配置文件   | cgi配置相关，fastcgi配置                   |
+| /etc/nginx/uwsgi_params                     | 配置文件   | cgi配置相关，fastcgi配置                   |
+| /etc/nginx/scgi_params                      | 配置文件   | cgi配置相关，fastcgi配置                   |
+| /etc/nginx/koi-utf                          | 配置文件   | 编码转换映射转化文件                       |
+| /etc/nginx/koi-win                          | 配置文件   | 编码转换映射转化文件                       |
+| /etc/nginx/win-utf                          | 配置文件   | 编码转换映射转化文件                       |
+| /etc/nginx/mime.types                       | 配置文件   | 设置http协议的content-type与扩展名对应关系 |
+| /usr/lib/systemd/system/nginx-debug.service | 配置文件   | 用于配制出系统守护进程管理器管理方式       |
+| /usr/lib/systemd/system/nginx.service       | 配置文件   | 用于配制出系统守护进程管理器管理方式       |
+| /etc/sysconfig/nginx                        | 配置文件   | 用于配制出系统守护进程管理器管理方式       |
+| /etc/sysconfig/nginx-debug                  | 配置文件   | 用于配制出系统守护进程管理器管理方式       |
+| /usr/lib64/nginx/modules                    | 目录       | Nginx模块目录                              |
+| /etc/nginx/modules                          | 目录       | Nginx模块目录                              |
+| /usr/sbin/nginx                             | 命令       | Nginx服务的启动管理的终端命令              |
+| /usr/sbin/nginx-debug                       | 命令       | Nginx服务的启动管理的终端命令              |
+| /usr/share/doc/nginx-1.12.0                 | 文件，目录 | Nginx的手册和帮助文件                      |
+| /usr/share/doc/nginx-1.12.0/COPYRIGHT       | 文件，目录 | Nginx的手册和帮助文件                      |
+| /usr/share/man/mman8/nginx.8.gz             | 文件，目录 | Nginx的手册和帮助文件                      |
+| /var/cache/nginx                            | 目录       | Nginx的缓存目录                            |
+| /var/log/nginx                              | 目录       | Nginx的日志目录                            |
+
+- 编译参数
+
+```bash
+nginx -V
+
+```
+
+- 基本配置语法(nginx.conf)
+
+| 部分   | 项目               | 含义                                        |
+| ------ | ------------------ | ------------------------------------------- |
+| 总体   | user               | 设置Nginx服务的系统使用用户，一般为默认用户 |
+| 总体   | worker_processes   | 工作进程数，一般为cpu个数                   |
+| 总体   | error_log          | nginx的错误日志                             |
+| 总体   | pid                | nginx服务启动时候的pid                      |
+| events | use                | 工作进程数                                  |
+| events | worker_connections | 每个进程允许最大连接数                      |
+
+- 查看请求和响应头部
+
+```bash
+ curl -v http://www.imooc.com > /dev/null
+```
+
+- nginx 虚拟主机以及实现方式：一个nginx启用多个虚拟主机来应对多个业务，服务间相互独立
+
+  - 基于主机多IP的方式：一个OS配置多个IP
+  - 基于端口的配置方式：监听不同端口
+  - 基于多个host名称方式（多域名方式）
+
+* 基于主机多IP的方式
+
+- 方式一：多网卡多IP的方式
+- 方式二：单网卡多IP的方式
+  添加网卡
+
+```bash
+ip a add 192.168.8.146/24 dev enth0
+ip a  检查网络
+```
+
+- 基于端口的方式
+
+//查看端口是否使用
+netstat -luntp
+
+```bash
+ngins -tc nginx.conf
+nginx -s reload
+
+```
+
+- 基于host域名的配置（原理：利用http协议，request会将host信息携带过来，nginx接收到之后用来判断）
+
+```markdown
+- 修改host  
+  10.201.5.7 1.imooc.com
+  10.201.5.7 2.imooc.com
+- 修改server_name， 端口均为80
+```
+
+- ngixn日志 log_format
+
+* error log
+* access log
+
+nginx 变量 [nginx doc](https://nginx.org/en/docs/varindex.html)
+
+- http请求变量：arg_PARAMETER, http_HEADER 代表request请求头信息, send_http_HEADER 代表 response响应头信息
+  比如 User-Agent --> http_user_agent
+- 内置变量
+- 自定义变量
+
+### 模块讲解
+
+nginx 模块：官方模块 + 第三方模块
+
+1. --with-http_stub_status_module nginx的客户端状态 location
+   stub_status;
+
+```bash
+Active connections: 2
+server accepts handled requests
+ 15 15 17
+Reading: 0 Writing: 1 Waiting: 1
+```
+
+2. --with-http_random_index_module 目录中随机选择一个随机主页 location
+
+3. --with-http_sub_module 修改http的返回内容 缓存多用 配置比较多
+
+```bash
+location / {
+            #random_index on;
+            sub_filter '<a>imooc</a>' '<a>IMOOC</a>';
+            sub_filter_once off; //全部复制
+        }
+```
+
+### nginx的请求限制
+
+1. 连接频率限制 limit_conn_module
+2. 请求频率限制 limit_req_module
+
+| Http协议版本 | 连接关系          |
+| ------------ | ----------------- |
+| HTTP1.0      | TCP不能复用       |
+| HTTP1.1      | 顺序性TCP复用     |
+| HTTP2.0      | 多路复用，TCP复用 |
+
+连接（TCP）和请求（HTTP）的区别
+
+- 连接限制
+  limit_conn_zone key zone=name:size;
+  limit_conn zone number;
+
+- 请求限制
+  limit_req_zone key zone=name:size rate=rate; http
+  limit_req zone=name [brust=number] [nodelay]; http, server, location
+
+```bash
+//请求50，并发20
+ab -n 50 -c 20 http://ip/1.html
+```
+
+### 访问控制
+
+1.nginx 的访问控制的基本方式
+
+- 基于IP的访问控制 http_access_module
+- 基于用户的信任登录 http_auth_basic_module
+
+http_access_module
+
+- allow address|CIDR|unix:|all server location http
+- deny address|CIDR|unix:|all
+
+> 解决http_access_module的局限性：
+
+- 采用别的HTTP头信息控制访问，如http_x_forworded_for
+
+> http_x_forworded_for=clientIP, Proxy(1)IP, Proxy(2)IP, ...
+
+- 结合geo模块
+- 通过HTTP自定义变量传递
+
+> http_auth_basic_module模块,使用 htpasswd 工具生成密码文件
+
+- 语法：auth_basic string|off; 默认off
+- 上下文：http, server, location,limit_except
+- 语法：auth_basic_user_file file;
+- s上下文：http, server, location, limit_except
+
+> 使用http_auth_basic_module的局限性
+
+- 用户信息依赖文件方式
+- 操作管理机械，效率低下
+
+## 解决方案
+
+### Nginx结合Lua实现高效验证
+
+### Nginx和企业LDAP打通
+
+> 利用nginx_auth_ldap模块
+
+### Nginx作为静态资源web服务
+
+#### 动静分离, CDN(内容分发网络)
+
+> 什么是静态资源：非服务器动态运行生成的文件
+
+| 类型         | 种类                 |
+| ------------ | -------------------- |
+| 浏览器端渲染 | Html，Css，js        |
+| 图片         | JPEG，gif，png       |
+| 视频         | flv，mpeg            |
+| 文件         | text，等任意下载文件 |
+
+> CDN技术
+
+> 配置语法：传输 文件读取
+
+- 语法：sendfile on|off; 默认off
+- 上下文：http, server, location, if in location
+
+--wuth-file-aio 异步文件读取
+
+- 语法：tcp_nopush on|off; 默认off
+- 上下文：http, server, location
+
+作用：sendfile开启的作用下才能使用，提高网络包的传输效率
+
+- 语法：tcp_nodelay on|off; 默认on
+- 上下文：http, server, location
+
+作用：实时性要求较高，keepalive连接下，提高网络包的传输实时性
+
+> 配置语法：压缩
+
+- 语法：gzip on|off; 默认off
+- 上下文：http, server, location, if in location
+
+作用：压缩传输
+
+- 语法：gzip_comp_level level; 默认1 设置压缩级别
+- 上下文：http, server, location
+
+作用：压缩传输
+
+- 语法：gzip_http_version 1.0|1.1; 默认1.1
+- 上下文：http, server, location
+
+使用模块
+
+> 模块： http_gzip_static_module 预读gzip功能，先读gz格式文件
+>
+> 模块：http_gunzip_module 应用支持gunzip的压缩方式，使用很少，解决浏览器不支持gzip的问题
+
+- 二：浏览器缓存：Http协议定义的缓存机制（如：expires，cache-control）
+
+配置语法：expires 向HTTP头部添加Cache-Control和Expires信息
+
+- 语法：expires [modified] time; 默认off
+- 上下文：http, server, location, if in location
+
+实践场景
+
+> max-age=0 每次请求都要和服务器做一个校验
+
+- 三：Nginx作为静态资源web服务：跨域访问
+
+* 语法：add_header name value [always];
+* 上下文：http, server, location, if in location
+
+example:
+
+- add_header Access-Control-Allow-Origin \*|url;
+- add_header Access-Control-Allow-Methods GET,POST,PUT,DELETE,OPTIONS;
+
+* 四：Nginx作为静态资源web服务：防盗链
+
+方式一：区别哪些请求是非正常的用户请求
+
+基于http_refer
+
+- 语法：valid_referers none|blocked|server_names|string ...;
+- 上下文：server, location
+
+curl -e 'http://www.baidu.com' -I http://ip:port/path 添加referer为baidu，只请求头部
+
+example
+
+- valid_referers none blocked ip ;
+
+* Nginx作为代理服务：通过代理把客户端和服务器连接起来
+
+> 正向代理和反向代理的区别：代理的对象不一样。正向代理的代理对象是客户端，代表客户端向服务器发送请求；反向代理的代理对象是服务端，代表服务器接受用户的访问请求。
+
+- 语法：proxy_pass URL:
+- 上下文：location, if in location, limit-except
+
+反向代理场景:注意代理的文件必须存在在proxy代理服务器上面
+
+正向代理场景：3-15需要再看
+
+代理服务补充
+
+缓冲区
+
+- 语法：proxy_buffering on|off;默认on
+- 上下文：http, server, location
+
+跳转重定向(处理301返回:永久移动)
+
+- 语法：proxy_redirect default|off|redirect replacement;默认default
+- 上下文：http, server, location
+
+头信息
+
+- 语法：proxy_set_header field value;默认值 Host $proxy_host;Connection close;
+- 上下文：http, server, location
+
+扩展：proxy_hide_header, proxy_set_body
+
+超时
+
+- 语法：proxy_connect_timeout time;默认值60s
+- 上下文：http, serevr, location
+
+扩展：proxy_read_timeout, proxy_send_timeout
+
+- Nginx作为负载均衡服务
+
+> 为什么需要负载均衡？扩容后端服务，均摊请求，容灾高可用
+
+> nginx实现负载均衡的原理：通过proxy_pass转发请求到一组虚拟的upstream server服务池
+
+- 语法：upstream name { };
+- 上下文：http // 必须在server层之外
+
+```bash
+upstream upstream_test {
+server localhost:8081 down;
+server localhost:8082 backup;
+server localhost:8080;
+}
+location / {
+	proxy_pass http://upstream_test;
+}
+```
+
+负载均衡默认采用轮训的机制
+
+关闭8002端口对外提供的服务：iptables -I INPUT -p tcp --dport 8002 -j DROP
+
+负载均衡调度算法：
+基于请求：轮询 ，加权轮询
+基于IP的hash：ip_hash
+基于url的hash：url_hash
+基于最小连接数：
+基于hash关键数值：
+
+- Nginx作为缓存服务：减少后端压力
+
+  3.26 缓存类型
+
+* 服务器端缓存
+* 代理缓存
+* 客户端缓存
+
+  3.27 缓存服务配置语法
+
+proxy_cache_path /opt/app/cache levels=1:2 keys_zone=zone_name:10m max_size=10g inactive=60m use_temp_path=off;
+
+- 语法：proxy_cache zone_name|off; 默认off
+- 上下文：http, server, location
+
+- 语法：proxy_cache_valid [code] time;
+- 上下文：http, server, location
+
+example
+proxy_cache zone_name;
+proxy_cache_valid 200 304 12h;
+proxy_cache_valid any 10m;
+proxy_cache_key $host$uri$is_args$args;
+add_header Nginx-Cache "$upstream_cache_status";
+proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+
+- 语法：proxy_cache_key string; 默认$scheme$proxy_host$request_uri
+- 上下文：http, server, location
+
+  3.28 场景配置
+
+如何清理指定缓存？
+方法一：rm -rf 缓存目录内容
+方式二：第三方扩展模块ngx_cache_purge
+
+如何让部分页面不缓存（登录页面之类）？
+
+- 语法：proxy_no_cache string ...;
+- 上下文：http, server, location
+
+大文件分片请求 http_slice_module
+
+## 深度学习
+
+### 动静分离
+
+> 也就是页面元素的动静分离，通过中间件将动态请求和静态请求的分离，静态资源不需要应用服务器进行cpu运算，动静分离的话可以减少请求延时，注意，动态请求出现问题的时候，静态请求还是可以使用的，这也就是为什么有的网站显示正常，但是功能无法使用
+
+在一个网站中，静态资源往往会集中在一个目录下面
+
+如何识别一个请求是什么资源？
+location中jsp，php等为请求动态
+location中img，jpg等请求为静态
+
+### rewrite规则
+
+> 实现url重写以及重定向
+
+使用场景：
+
+1. URL访问跳转，支持前后端接口联调，方便开发设计：页面跳转，兼容性支持，展示效果
+2. SEO优化
+3. 维护：后台维护，流量转发
+4. 安全：伪静态
+
+- 语法：rewrite regex replacement [flag];
+- 上下文：server, location, if
+
+example
+
+```bash
+rewrite ^(.*)$ /pages/maintain.html break;  //重定向所有页面到维护页
+```
+
+rewrite 正则表达式
+
+- 转义
+- （），通过$1,$2调用
+
+example
+
+```bash
+if($http_user_agent ~ MSIE){
+	rewrite ^(.*)$ /mise/$1 break;
+}
+```
+
+命令：pcretest 用来测试正则表达式
+
+flag相关
+
+| flag属性名 | 作用                                        |
+| ---------- | ------------------------------------------- |
+| last       | 停止rewrite检测                             |
+| break      | 停止rewrite检测                             |
+| rediect    | 返回302零时重定向，地址栏会显示跳转后的地址 |
+| permanent  | 返回301永久重定向，地址栏会显示跳转后的地址 |
+
+last和break的区别：前者会新建一个请求，成功rewrite，后者如果本地没有对应额rewrite地址的话，会出错
+
+redirect和permanent的区别：
+
+---
+
+rewrite规则使用场景
+
+一般网站都会对网站内容做一定的层级划分，比如 /usr/local/var/www/code/content/1/2/target_3.html,访问路径则对应为：http：//domain/content/1/2/target_3.html
+
+Nginx可以针对这种场景将url进行改写
+
+```bash
+location / {
+	rewrite ^/target-(\d+)-(\d+)-(\d+)\.html$ /content/$1/$2/target_$3.html break;
+
+}
+
+此时访问http://domain/target-1-2-3.html, 相当于访问http：//domain/content/1/2/target_3.html
+```
+
+```bash
+if($http_user-agent ~* Chrome){
+	rewrite ^/nginx http://... redirect;
+}
+
+上面三行实现的效果是如果访问的客户端是Chrome，则在/nginx的时候进行跳转
+
+if(!-f $request_filename){
+	rewrite ^/(.*)$ http://www.baidu.com/$1 redirect;
+}
+
+上述三行代码实现的效果是访问的文件名如果不存在，则打开百度搜索
+```
+
+---
+
+rewrite规则优先级：执行server块的rewrite指令，执行location匹配，执行选定的location中的rewrite
+
+推荐的nginx写法：
+
+```bash
+server{
+	listen 80;
+	server_name nginx.org;
+	rewrite ^ http://www.nginx.org$request_uri?;
+
+}
+
+```
+
+## 高级模块配置
+
+### secure_link_module模块
+
+作用：
+一： 制定并允许检查请求的链接的真实性以及通过加密保护资源免遭未经授权的访问
+二： 限制链接生效周期，也就是网页下载链接失效的场景
+
+- 语法：secure_link expression;
+- 上下文：http, server, location
+
+- 语法：secure_link_md5 expression;
+- 上下文：http, server, location
+
+example
+
+```bash
+location / {
+	secure_link $arg_md5,$arg_expires;
+	<!--imooc是自定义的加密串，只有服务端知道这个信息-->
+	secure_link_md5 "$secure_link_expires$uri imooc";
+
+	if($secure_link = ""){
+		return 403;
+	}
+
+	if($secure_link = "0"){
+		return 410;
+	}
+}
+```
+
+### geoip_module模块
+
+作用：
+基于IP地址匹配MaxMind GeoIP二进制文件，读取IP所在地域信息
+
+使用场景：
+一：区别国内外做HTTP访问规则
+二：区别国内城市地域做HTTP访问规则
+
+该模块默认没有编译，需要自己安装，同时引入conf文件
+
+```bash
+load_module "modules/ngx_http_geoip_module.so";
+load_module "modules/ngx_stream_geoip_module.so";
+
+user ...;
+
+
+geoip_country /path/to/geoip.dat;
+geo_city /path/to/geoip.dat;
+server{
+	location / {
+		if($geo_country_code != CN){
+			<!--403:forbidden-->
+			return 403;
+		}
+		root html;
+		index index.html;
+	}
+
+	location /myip {
+		default_type text/plain;
+		return 200 "$remote_addr $geoip_country_name $geoip_country_code $geoip_city";
+	}
+
+
+}
+```
+
+## HTTPS服务
+
+协议原理，优势劣势
+
+为什么需要HTTPS？HTTP不安全。1. 传输数据被中间人调用，信息泄露；2. 数据内容被第三方，运营商劫持，篡改，重定向，小广告。
+
+HTTPS对传输内容加密，对身份进行认证
+
+```bash
+生成秘钥和CA证书
+#openssl version 验证openssl已安装
+#nginx -V 验证 --with-http_ssl_module
+
+步骤一：生成key秘钥
+步骤二：生成证书签名请求文件（csr文件）
+步骤三：生成证书签名文件（CA文件） 这一步适合于自签，第三方的话需要发送给第三方机构
+
+步骤一：
+# openssl genrsa -idea -out name.key 1024
+
+需要输入密码，牢记
+
+步骤二：
+# openssl req -new -key name.key -out name.csr
+
+需要填写密码和很多的机构信息
+
+步骤三：
+# openssl x509 -req -days 3650 -in name.csr -signkey name.key -out name.crt
+
+需要输入密码
+
+
+```
+
+相关配置
+
+- 语法：ssl on|off;默认off
+- 上下文：HTTP， server
+
+- 语法：ssl_certificate file;
+- 上下文：http, server
+
+- 语法：ssl_certificate_key file;
+- 上下文：http, server
+
+```bash
+# nginx.conf
+server {
+	listen 443;
+	ssl on;
+	ssl_certificate /path/to/name.crt;
+	ssl_certificate_key /path/to/name.key;
+	}
+```
+
+HTTPS服务优化
+
+- 方法一 激活keepalive长连接
+
+```bash
+keepalive_timeout 100;
+```
+
+- 方法二 设置ssl session缓存
+
+* Nginx与LUA（脚本语言）开发（灰度发布）
+
+> 充分的结合Nginx的兵法处理epoll优势和Lua的轻量实现简单功能且高并发的场景
+
+nginx使用lua需要重新编译，具体查看慕课手记
+
+nginx接受用户请求，然后调用lua模块
+
+nginx的可插拔模块化家在执行，共11个处理阶段
+
+| 阶段                | 用途                                  |
+| ------------------- | ------------------------------------- |
+| set_by_lua          | 设置nginx变量，可以实现复杂的复杂逻辑 |
+| set_by_lua_file     |
+| access_by_lua       | 请求访问阶段处理，用于访问控制        |
+| access_by_lua_file  |
+| content_by_lua      | 内容处理器，接受请求处理并且输出响应  |
+| content_by_lua_file |
+
+Nginx Lua API: lua调用nginx的功能
+
+实战：灰度发布
+
+> 什么是灰度发布？按照一定的关系区别，分部分的代码进行上线，使得代码的发布能平滑过度上线， 不至于影响很多的用户。
+
+- 基于用户的信息cookie等信息
+- 基于用户的IP地址
+
+4. Nginx架构篇
+
+- 常见问题
+
+* 相同server_name多个虚拟主机优先级访问问题
+* location匹配优先级问题
+* try_file使用问题
+* Nginx的alias和root的区别问题
+* 用什么方法传递用户的真实IP
+* 其他
+
+-- 相同server_name多个虚拟主机优先级访问
+
+```bash
+server{
+	listen 80;
+	server_name testserver1 alfredlau.github.io;
+	location {
+		...
+	}
+}
+
+server {
+	listen 80;
+	server_name testserver2 alfredlau.github.io;
+}
+
+碰到上述情况，nginx优先读取先一步加载的配置，比如testserver1和testserver2会优先选testserver1
+```
+
+-- 一个server多个location的匹配优先级
+
+= 进行普通字符的精确匹配，也就是完全匹配
+^~ 表示普通字符匹配，使用前缀匹配
+~ \~\* 表示执行一个正则匹配
+
+前两个优先级最高，第三个如果找不到优先级更高的才使用它
+
+example
+
+```bash
+# 完全匹配
+location = /code1/ {
+	rewrite ^(.*)$ /code1/index.html break;
+}
+
+# 前缀匹配，以...开头
+location ~ /code.* {
+	rewrite ^(.*)$ /code3/index.html break;
+}
+
+# 正则匹配
+location ^~ /code {
+	rewrite ^(.*)$ /code2/index.html break;
+}
+```
+
+-- try_files的使用：缓存的场景，动静分离都可以使用
+
+按顺序检查文件是否存在
+
+```bash
+# 样板
+location /{
+	try_files $uri $uri/ /index.php;
+}
+
+# example
+location / {
+	root /opt/app/code/cache;
+	try_files $uri @java_page;
+}
+
+location @java_page{
+	proxy_pass http://127.0.0.1:9090;
+}
+```
+
+-- nginx的alias和root的区别
+
+对于root来说，实际访问路径等于 root + location
+
+比如
+
+```bash
+location /request_path/image/ {
+	root /local_path/image/;
+}
+
+实际上访问 http://domain.com/request_path/image/cat.png的时候，在服务器上实际访问的是 /local_path/image/request_path/image/cat.png
+
+而使用alias
+
+location /request_path/image/ {
+	alias /local_path/image/;
+}
+
+访问 http://domain.com/request_path/image/cat.png的时候，在服务器上实际访问的是 /local_path/image/cat.png
+
+```
+
+-- 用什么样的方法传递用户的真实IP
+
+使用http_x_forword_for是一种方法，但是容易被篡改
+
+最佳实践是：
+
+用户（IP1） ---> 代理1（IP2） ---> 代理2...n（IP2...IPn）---> 后端服务
+
+在第一级代理的地方，设置
+
+```bash
+set $x_real_ip=$remote_addr;
+```
+
+在后端服务 使用$x_real_ip就是IP1
+
+-- 其他
+
+nginx常见的错误码
+
+413 request entity too large，也就是超出nginx限制文件大小
+
+解决方法：用户上传文件限制 client_max_body_size
+
+502 bad gateway 后端服务（比如tomcat）挂掉
+
+504 gateway time-out 后端服务执行超时，取数据库慢，负载超时
+
+-
+
+## 系统和nginx性能优化
+
+### 网络
+
+### 系统
+
+### 服务
+
+### 程序本身
+
+### 数据库，底层服务
+
+文件句柄
+
+Linux\Unix 一切皆文件，文件句柄就是一个索引,调用越多，文件句柄消耗越快
+
+设置方式：
+系统全局性修改，用户局部性修改，进程局部性修改
+
+修改文件句柄的文件位置： /etc/security/limits.conf
+
+### Nginx与安全
+
+### 中间件架构设计
+
+Nginx中间件性能优化（5.9）
+
+- 考虑点
+- 压测工具ab
+- 系统和nginx性能优化
+
+考虑点
+
+- 当前系统结构瓶颈：观察指标；压力测试
+- 了解业务模式：接口业务类型，系统层次化结构
+- 性能与安全
+
+接口压测工具ab
+
+- 安装
+
+```bash
+yum install httpd-tools
+```
+
+- 使用
+
+```bash
+ab -n 2000 -c 2 http://127.0.0.1/
+
+-n 总的请求数
+-c 并发数
+-k 是否开启长连接连接服务端
+```
+
+出于性能考虑，静态资源最好还是放在nginx这里做动静分离，不要交给服务器处理
+
+## 新特性
+
+### nginx平滑升级
+
+1.nginx保证平滑升级
+
+- 新老版本Nginx安装目录结构一致
+- 老版本备份 nginx -> nginx.old
+- 重启进程采用reload的方式，不用restart，后者会中断用户访问 nginx -s reload
+
+1. 了解现有版本nginx的安装
+2. 按照原有的编译参数重新编译新版本
+3. reload服务
+
+### HTTP2.0协议特性
+
+2.HTTP2.0 GRPC多路复用；字节流头部
+
+### GRPC应用网关
+
+3. GRPC ：Google主导开发的一套RPC框架，提供从客户端到服务端整套的解决方案，基于HTTP2.0的通信协议
+
+- 简单模式
+- 双向数据流模式
+
+nginx反向代理GRPC， 需要满足版本 nginx >1.12.10
+
+## 实战案例
+
+### render.bitou.tech 实现到 pen.bitou.tech 的反向代理
+
+```bash
+server {
+	listen 80;
+	server_name render.bitou.tech;
+	location / {
+		rewrite ^/(.*)$ /$1 permanent;
+	}
+}
+```

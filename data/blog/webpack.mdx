@@ -1,0 +1,1360 @@
+---
+title: "构建工具 webpack"
+summary: "构建工具 webpack"
+date: "2023-08-05"
+lastmod: "2023-08-05"
+tags: ["服务端", "网关"]
+draft: false
+images: ["/static/images/twitter-card.png"]
+---
+
+# webpack
+
+## 导读
+
+### webpack的诞生
+
+### 为什么需要构建
+
+#### 分工的变化
+
+####
+
+## 基础知识
+
+### 模块化开发
+
+#### js模块化
+
+#### css模块化
+
+### webpack基础
+
+#### 核心概念
+
+- Entry：代码打包入口，单个或者多个（多页面或者按照业务划为多个入口），区别于代码执行的入口；
+
+```js
+module.exports = {
+  entry: {
+    index: "index.js",
+  },
+};
+```
+
+- Output：打包成的文件，一个或者多个
+- Loaders：处理文件，转化为js模块
+- Plugins：参与到整个打包过程，极其灵活
+
+#### 名词
+
+- chunk：代码块
+- bundle：打包过的代码
+- module：处理生成的模块
+
+#### 使用webpack
+
+_方法_
+
+- webpack命令: webpack -h 很重要
+- webpack配置文件
+- 第三方脚手架
+
+## 文件处理
+
+### 打包js
+
+```js
+//app.js
+// es module
+import { sum } from "./sum";
+
+// commonjs module
+
+var minus = require("./minus");
+
+// amd module
+require(["./mult"], function (mult) {
+  console.log("mult(1,2) :", mult(1, 2));
+});
+
+console.log("sum(1,2) = ", sum(1, 2));
+console.log("minus(1,2) = ", minus(1, 2));
+
+//mult.js
+
+/*
+
+这个module会异步打包，所以会生成
+
+Hash: 0c96debc99a615f79024
+Version: webpack 3.10.0
+Time: 67ms
+      Asset       Size  Chunks             Chunk Names
+0.bundle.js  429 bytes       0  [emitted]
+  bundle.js    6.75 kB       1  [emitted]  main
+   [0] ./app.js 264 bytes {1} [built]
+   [1] ./sum.js 46 bytes {1} [built]
+   [2] ./minus.js 57 bytes {1} [built]
+   [3] ./mult.js 112 bytes {0} [built]
+   
+两个bundle.js
+*/
+
+define(function (require, factory) {
+  "use strict";
+  return function (a, b) {
+    return a * b;
+  };
+});
+```
+
+### 编译es6, es7
+
+安装babel-loader
+
+```bash
+<!--不需要最新的-->
+npm install babel-loader babel-core --save-dev
+```
+
+安装了loader之后，还需要安装babel的解释规范(babel preset)，包含如下一些：
+es2015:es6
+es2016:es7
+es2017:es8
+env:集成了2015-2017的规范，且包含最近的规范
+babel-preset-react:react的编译解释规范
+babel-preset-stage 0-3:从stage-0到stage-3四个阶段的解释规范
+
+```bash
+npm install babel-preset-env --save-dev
+```
+
+babel preset的配置
+
+babel插件
+
+- babel polyfill：全局垫片，引入之后，就新增(污染)了全局变量，为开发应用准备，而不是为开发框架准备。
+
+```bash
+# install
+npm install babel-polyfill --save
+
+#usage
+import 'babel-polyfill'
+```
+
+- babel runtime transform:局部垫片，不会污染全局，为开发框架准备
+
+```bash
+# install
+npm install babel-plugin-transform-runtime --save-dev
+npm install babel-runtime --save-dev
+
+#usage
+
+根目录新建一个.babelrc文件，babel相关配置文件都可以放在那个地方
+```
+
+### 编译typescript
+
+使用typescript loader
+
+```bash
+npm i typescript ts-loader --save-dev
+# or 下面是社区的解决方案，使用了缓存，所以更快
+npm i typescript awesome-typescript-loader --save-dev
+```
+
+配置
+tsconfig.json
+webpack.config.js
+
+常用选项
+compilerOptions
+include
+exclude
+
+ts的声明文件
+
+### 提取打包公共代码（模块）：单页面同一个js文件不用下载，多页面使用缓存
+
+模块
+CommonsChunkPlugin
+
+配置
+
+场景
+
+- 单页应用
+- 单页应用 + 第三方依赖
+- 多页应用 + 第三方依赖 + webpack生成代码
+
+### 代码分隔和懒加载
+
+注意：并不是通过配置webpack来为代码添加代码分隔和懒加载的功能，而是在代码中改变写代码的方式
+
+方法有二：
+
+```js
+1. 方法一
+
+require.ensure方法，接受四个参数：
+- []：依赖
+- callback
+- errorCallback
+- chunkName
+
+require.include方法
+
+2. 通过es6规范定义的 loader spec
+
+System.import() -> import()
+
+import()返回一个promise
+
+> webpack import function :动态加载
+
+import(
+	/*
+	在注释中定义chunkName等,webpack新增功能‘magic comments’
+	webpackChunkName:'subpage'
+	*/
+	moduleName
+).then(cb)
+
+```
+
+代码分割使用场景
+
+- 分离业务代码 和 第三方依赖
+- 分离业务代码 和 业务公共代码 和 第三方依赖
+- 分离首次加载 和 访问后加载的代码
+
+### 处理css
+
+- 如何在js中引入css
+- css module
+- less/sass
+- 提取css代码
+
+引入css
+
+style-loader:使得css嵌入到页面中，最后一步使用，所以在配置中放在最前面
+css-loader:使得js可以使用css module
+
+style-loader/url：很小众的功能，通过link标签而不是默认的style方式插入到页面中，可能需要配置file-loader和output.publicPath
+
+style-loader/useable：
+
+```javascript
+import base from "../css/base.css";
+
+base.use();
+使用该样式;
+base.unuse();
+不使用该样式;
+```
+
+file-loader
+
+style-loader 配置
+options
+insertAt:插入位置
+insertInto：插入到某一DOM元素上
+singleton：是否只使用一个style标签
+transform：转化，浏览器环境下，插入页面前
+关于transform
+建立css.transform.js文件
+
+```javascript
+module.exports = function (css) {
+  console.log(window.innerWidth);
+  return css.replace("red", "green");
+};
+```
+
+执行时机：不是在打包的时候，而是在浏览器加载样式代码的时候，调整每一个css模块
+
+style-loader 配置
+alias：解析的别名
+importLoader：@import
+Minimize: 是否压缩
+modules：启用css-modules
+CSS Modules相关
+
+- :local
+- :global
+- compose
+- compose...from path
+
+css-loader 配置
+options
+modules: true,
+localIdentName: '[path][name]\_[local]\_[hash:base64:5]';
+
+配置less / sass
+安装loader
+
+```bash
+npm install less node-sass less-loader sass-loader --save-dev
+```
+
+提取项目中的css文件（只会提取，并不会直接添加到HTML文件之中），方法有二：3.13代码细看
+
+- 1. extract-loader
+- 2. ExtractTextWebpackPlugin
+
+```bash
+npm i extract-text-webpack-plugin webpack --save-dev
+```
+
+```javascript
+var ExtractTextWebpackPlugin = require("extract-text-webpack-plugin");
+
+plugins: [
+  new ExtractTextWebpackPlugin({
+    filename: "[name].min.css",
+    allChunks: false, //控制动态加载（import）的css是否统一打包在一起，还是打包在各自的bundle.js中，默认为false，分开打包
+  }),
+];
+```
+
+PostCSS in Webpack
+
+- PostCSS
+- AutoPrefixer
+- CSS-nano
+- CSS-next
+
+什么是PostCSS：webpack打包的时候使用
+安装： postcss postcss-loader Autoprefixer postcss-cssnano postcss-cssnext
+
+```bash
+npm i postcss postcss-loader autoprefixer cssnano postcss-cssnext --save-dev
+```
+
+Autoprefixer 用处：针对不同浏览器添加属性前缀
+
+```css
+a {
+  ddisplay: flex;
+}
+
+# 转化为 a {
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+}
+```
+
+CSS-nano：帮助我们压缩css使用的，css-loader压缩功能使用的就是它
+
+CSS-next: 可以使用未来的css语法
+
+postcss-loader在webpack的使用位置：less-loader / sass-loader之上，css-loader 和 style-loader 之下
+
+postcss-loader的配置
+options
+ident:'postcss' # 表明接下来的那些插件是给postcss使用的
+plugins:[
+require('autoprefixer')() # 添加autoprefixer
+require('postcss-cssnext')() # 使用新的css语法
+]
+关于Browserslist
+所有插件都共用的方法：
+
+- 1. 使用package.json
+- 2. .browserslistrc
+
+在package.json中添加
+
+```js
+{
+...
+"browserslist":[
+	">= 1%",
+	"last 2 versions"
+]
+}
+```
+
+postcss-import
+postcss-url
+postcss-assets
+
+Tree Shaking:针对js和css文件
+
+- JS Tree Shaking
+- CSS Tree Shaking
+
+使用场景
+
+- 常规优化
+- 引入第三库的某一个功能，而不是全部，需要删减其他
+
+使用Webpack.optimize.uglifyJS来把它们移除掉
+
+```js
+# loadsh tree shaking 不生效的解决办法
+lodash 和 lodash-es, 不支持tree shaking，可以借助 babel-plugin-lodash
+
+npm i babel-plugin-lodash --save-dev
+
+webpack.config.js
+
+{
+	test: /\.js$/,
+	use: [
+		{
+			loader:'babel-loader',
+			options:{
+				presets:['env'],
+				plugins:['lodash']
+			}
+		}
+	]
+}
+```
+
+css shaking
+
+用到 purify css
+options
+paths：glob.sync([])
+
+```js
+npm i purifycss-webpack glob-all --save-dev
+
+plugins:[
+	{
+		paths: glob.sync([
+			path.join(__dirname, './*.html'),
+			path.join(__dirname, './src/*.js')
+		])
+	}
+]
+```
+
+### 文件处理：图片处理，字体文件，第三方js库
+
+#### 图片处理
+
+引入图片：
+
+- 自动合成雪碧图
+- 压缩图片
+- Base64编码
+
+处理css中的图片，使用 file-loader
+处理Base64编码，使用 url-loader = file-loader + base64小图片功能
+处理压缩图片，使用 img-loader
+处理合成雪碧图，使用 postcss-sprites
+
+```js
+npm i file-loader url-loader img-loader postcss-sprites
+
+modules: [{
+	test: /\.(png|jpg|jpeg|gif)$/,
+	use: [
+		{
+			loader: 'file-loader',
+			options:{
+				publicPath: '',
+				outputPath: 'dist/',
+				useRelativePath: true
+			}
+		}
+		{
+			loader: 'url-loader',
+			options: {
+				limit:5000,  # 5k							publicPath: '',
+				outputPath: 'dist/',
+				useRelativePath: true
+			}
+		}
+
+	]
+}
+
+]
+```
+
+## 开发环境
+
+### webpack搭建开发环境有三种方式：
+
+- webpack watch mode：
+  优势：开发灵活，命令行监听文件
+  劣势：还不是server
+- webpack dev server
+  优势：可以有好多配置功能
+  劣势：。。
+- express + webpack-dev-middleware
+  优势：更加灵活
+  劣势：复杂
+
+### webpack watch mode
+
+```js
+# 这个webpack插件的作用：每次打包的时候清除生成目录
+npm i clean-webpack-plugin --save-dev
+
+webpack -w --progress --display-reasons --color  # or -watch
+
+# usage
+
+var CleanWebpackPlugin = require('clean-webpack-plugin');
+
+plugins:[
+	...,
+	# 指定需要清除的目录
+	new  CleanWebpackPlugin(['dist'])
+]
+
+
+```
+
+### webpack-dev-serevr
+
+> webpack官方提供的开发服务器
+>
+> 打包文件？并不能，当运行它的时候，打包的文件其实是运行在内存中，而不是在磁盘上，dist是找不到的，还是需要webpack来帮助打包。
+
+#### 作用
+
+- live reloading：刷新浏览器
+- 模块热更新：不刷新的情况下更新代码
+- 路径重定向
+- https
+- 浏览器中显示编译错误
+- 接口代理：使用线上真实接口数据
+
+> 和nginx设置接口跨域的区别，安全问题
+
+#### 配置
+
+devServer：
+
+    - inline: true|false, #决定是使用iframe方式还是inline方式使用devserver
+    - contentBase：  #提供内容的路径，默认不需要指定
+    - port: #监听本地哪个端口
+    - historyApiFallback  #当使用HTML5 history API的时候，直接访问某一个路径不会导致404，可以指定一个规则，很方便的做服务的渲染
+    - https: true|false, #指定为true生成证书，或者可以指定自己生成的证书
+    - proxy：指定proxy，进行远程的代理
+    - hot：打开hot选项，支持模块热更新的方式，模块热更新就是在某个时刻把代码替换掉，只是提供一个钩子，触发对应loader的热更新
+    - openpage：指定打开访问的页面，也可以在命令行通过--open直接打开index
+    - lazy：刚启动的时候不会打包任何的东西，访问的时候才会去编译，这个参数在多页面应用中十分有用
+    - overlay:遮罩 # 浏览器在遮罩上提示错误
+
+example
+
+```js
+<!--package.json-->
+{
+	"scripts":{
+		"server": "webpack-dev-server --open"		...
+	}
+}
+
+## 为什么直接在命令行运行 `webpack-dev-server --open` 不行，在scripts里面就可以？这是node_module的查找方式决定的
+
+<!--webpack.config.js-->
+module.exports = {
+	...,
+
+	devServer: {
+		inline: false, #此种模式进入iframe，访问地址发生变化，同时显示状态条，很少用到
+		port: 9001,
+		historyApiFallback: {
+			rewrites:[
+				{
+					from: '/pages/a' | regx,
+					to: '/pages/a.html' | func
+				}
+			]
+		}| true, # 简单使用的话直接设置为true，任何404都会重定向到index，此时单页面应用重新加载js，单页应用路由生效，进而路径生效
+
+	}
+}
+
+```
+
+> 一般出现浏览器找不到资源的问题，往往都是webpack配置中output里面publicPath的配置确实或者出错！！！
+
+> 单页面应用，前面带#的，都是在同一个页面上面，而使用history api作为路由跳转的依据，跳页的时候不会造成浏览器的刷新，而是直接改变history对象里面的地址，这个时候访问的是一个直接页面的地址路径，但是我们本地却没有这个地址的文件，404，此处使用history-api-fallback。
+
+#### webpack-dev-server 的 Proxy
+
+> 前端跨域只在前端js文件才存在这个问题，因为浏览器和js ajax的同源策略限制问题，后端不存在这个问题，所以代理（中间人服务器）是在开发阶段解决这个问题最好的办法
+> https://facexl.github.io/blog/node/2017/05/15/proxy.html
+
+```js
+const express = require("express"); //创建HTTP服务器的流行框架
+const request = require("request"); //封装了 HTTP 请求的各种方法
+const app = express(); //实例化一个express对象
+app.use("/", function (req, res) {
+  var url = "https://facexl.github.io/blog/" + req.url;
+  req.pipe(request(url)).pipe(res);
+});
+app.listen(process.env.PORT || 80); //监听80端口
+```
+
+> 代理远程第三方请求
+
+它是通过集成 http-proxy-middleware 实现的，它们的参数互通
+
+使用：通过 devServer.proxy
+
+options：
+
+    - target: 指定代理到什么地址
+    - changeOrigin：默认false，需要设为true，虚拟地址(virtual host)请求调试的时候很重要
+    - headers：给代理的请求添加header，通常设置ua和cookie
+    - logLevel：'debug',  # 在控制台显示提示信息
+    - pathRewrite：本地接口重定向到本地其他接口，实现长url变短url
+
+example
+
+```js
+derServer: {
+  proxy: {
+    target;
+  }
+}
+```
+
+当远端地址对我们的身份有一些验证的时候，我们需要在 proxy.headers 里面添加一些头部验证信息
+
+```js
+headers:{
+	'Cookie': '拷贝cookie'
+}
+```
+
+### 模块热更新
+
+#### 优势：注意：改了HTML文件的话是需要刷新页面的！！！
+
+> 1. 保持应用的数据状态
+> 2. 节省调试时间
+> 3. 样式调试更快
+
+#### 配置：
+
+> 1. devServer.hot = true # 如果希望无论如何都不要触发全局的reload，就要添加 devServer.hotOnly = true,同时结合module.hot以及module.hot.accept
+> 2. webpack.HotModuleReplacementPlugin
+> 3. webpack.NamedModulesPlugin # 看到清晰的文件输出
+> 4. module.hot # 一般的loader（比如css-loader等）都会自带这个，否则的话，上面的配置只会检测到，倒并不会生效
+> 5. module.hot.accept(dep, cb)
+> 6. module.hot.decline
+
+#### 实例
+
+```js
+# 1
+devServer: {
+	...
+	hot: true
+}
+
+# 2
+plugins: [
+	...,
+	new webpack.HotModuleReplacementPlugin(),
+	# 3
+	new webpack.NamedModulesPlugin()
+]
+
+
+# 4
+在代码中，各种loader(...React-hot-loader)帮助我们完成4-6步
+
+if(module.hot){
+	module.hot.accept()
+}
+
+```
+
+### 开启调试 Source Map
+
+> 为什么要使用source map ？ 因为现在开发过程中 ，很多代码都是被转化过的，coffee，less，sass，ts, es 等等，之后经过编译才能运行，导致写的代码和实际运行的代码并不是对等的。source map就是用来做一个一一对应的。
+
+- js source map
+- css source map
+
+#### 开启方式有两种
+
+- 1. 通过在webpack配置对象中开启Devtool
+- 2. 通过使用插件：webpack.SourceMapDevToolPlugin or webpack.EvalSourceMapDevToolPlugin,这种方式更加灵活
+
+#### Devtool
+
+选项对应的值有7种.
+
+在开发环境下用的有：
+
+- 'eval'
+- 'eval-source-map'
+- 'cheap-eval-source-map'
+- 'cheap-module-eval-source-map'
+
+在生产环境下用的有：
+
+- 'source-map'
+- 'hidden-source-map'
+- 'nosource-source-map'
+
+```js
+# 1. 使用eval
+Devtool: 'eval',  # 使用eval编译和打包的速度都是非常快的，webpack自带生成代码还存在
+
+Devtool: ‘source-map’， # 使用这个需要在 new webpack.optimize.UglifyJsPlugin()指定source-map参数
+
+推荐使用 Devtool: 'cheap-module-source-map',首次编译会慢，再次编译就快了
+```
+
+#### css source map 很有用
+
+使用loader的时候要在选项中加上
+
+- css-loader.options.sourcemap
+- less-loader.options.spurcemap
+- sass-loader.options.sourcemap
+
+使用上述配置，需要去掉singleton配置
+
+#### 使用eslint检查代码格式
+
+需要安装的部分：
+
+```bash
+npm install eslint eslint-loader eslint-plugin-html eslint-friendly-formatter
+```
+
+配置eslint
+
+- 步骤一：添加eslint-loader
+- 步骤二：添加.eslintrc.\*文件， 或者添加在 package.json 中 eslintConfig 添加设置
+
+eslint-loader需要注意的配置参数
+options.failOnWarining
+options.failOnError
+options.formatter
+options.outputReport # 输出一个报告
+
+devServer.overlay : 打包过程中就可看到
+
+需要在babel-loader之前使用，请思考
+
+example:
+
+```bash
+
+<!--webpack.config.js-->
+
+modules: {
+	rules: [
+		{
+			test: /\.js$/,
+			include: [path.resolve(__dirname, 'src')],
+			exclude: [path.resolve(__dirname, 'src/libs')], # 屏蔽掉源码中第三方的libs，不进行解码
+			use: [
+				{
+					loader: 'babel-loader'
+					options: {
+						presets: ['env']
+					}
+				},
+				{
+					loader: 'eslint-loader',
+					options: {
+						formatter: require('eslint-friendly-formatter')
+					}
+				}
+			]
+		}
+
+	]
+}
+
+plugins: [
+
+	# eslint-plugin-import 不管用的话，需要配置如下插件
+	new webpack.ProvidePlugin({
+		$: 'jquery'
+	})
+
+]
+
+devServer: {
+	overlay: true,
+}
+
+npm install eslint-config-standard eslint-plugin-promise eslint-plugin-node eslint-plugin-import eslint-plugin-standard --save-dev
+
+```
+
+```js
+<!--.eslintrc.js-->
+
+module.exports= {
+	root: true,
+	extend: 'standard',
+	plugins: [
+		'html'
+	],
+	<!--控制全局变量 -->
+	globals:[
+		$: true
+	]
+	env: {
+		browser: true,
+		node: true
+	},
+	rules: {
+		indent: ['error', 4],
+		'eol-last':['error', 'never']
+	}
+}
+```
+
+#### 开发环境和生产环境 5.7-5.8
+
+> 开发环境需要哪些配置
+
+- 模块热更新
+- sourceMap
+- 接口代理
+- 代码规范检查
+
+> 生产环境需要哪些配置
+
+- 提取公共代码
+- 压缩混淆
+- 文件压缩，或是base64编码
+- 去除无用的代码（tree shaking）
+
+> 相同的地方
+
+- 同样的入口
+- 同样的代码处理（loader处理）
+- 同样的解析配置
+
+**
+如何实现： webpack-merge来实现将公共部分分别并入开发和生产差异的配置部分，这也就是我经常会看到三个webpack.(base|dev|prod).config.js的原因，再进一步，使用一个build文件夹来保存打包和开发相关的配置文件. 其实实现方式很多
+**
+
+```js
+# webpack.base.config.js 提取公共部分
+
+const merge = require('webpack-merge')
+
+module.exports = {
+	entry: {
+		app: './src/app.js'
+	},
+	output: {
+		path: path.resolve(__dirname, 'dist'),
+		publicPath: '/',
+		filename: 'js/[name]-bundle-[hash:5].js'
+	},
+	resolve: {
+		alias: {
+			jauery$: path.resolve(__dirname, './src/libs/jquery.min.js')
+		}
+	},
+	modules: {
+		rules: [
+
+		]
+	},
+	plugins:[]
+}
+
+
+
+# webpack.dev.config.js
+const webpack = require('webpack');
+
+module.exports = {
+	devtool: 'cheap-module-source-map',
+
+	devServer: {
+	},
+
+	plugins: [
+		new webpack.HotModuleReplacementPlugin(),
+		new webpack.NamedModulesPlugin()
+	]
+
+}
+
+新增 package.json -> scripts
+"dev": "webpack-dev-server --env development --open --config build/webpack.dev.config.js"
+
+# webpack.prod.config.js
+const webpack = require('webpack');
+
+module.exports = {
+	plugins:[
+		new PurifyWebpack({
+			paths:glob.sync([
+				'./*.html',
+				'./src/*.js'
+			])
+		}),
+
+		new webpack.optimize.CommonsChunkPlugin({
+			name: 'manifest'
+		}),
+
+		new HtmlInlinkChunkPlugin({
+			inlineChunks: ['manifest']
+		}),
+
+		new webpack.optimize.UglifyJsPlugin(),
+
+		new CleanWebpackPlugin(['dist'])
+
+	]
+}
+
+新增 package.json -> scripts
+"build": "webpack --env production --config build/webpack.prod.config.js"
+
+```
+
+更进一步，为了简化配置，可以单独把属于每一部分的options单独移出来，比如 .babelrc
+
+```js
+{
+	"presets": [
+		"env"
+	]
+}
+```
+
+### 使用middleware搭建开发环境
+
+> 优势：更加灵活，适合高级工程师为自己的业务添加一些自定义的内容
+
+> 依赖
+>
+> 1. 第三方的 Node Server服务 Express or Koa
+> 2. webpack-dev-middleware
+> 3. webpack-hot-middleware # 做热更新
+> 4. http-proxy-middleware # 做代理
+> 5. connect-history-api-fallback # 做地址redirect
+> 6. opn # 打开浏览器页面
+
+```bash
+npm i express opn webpack-dev-middleware webpack-hot-middleware http-proxy-middleware connect-history-api-fallback --save-dev
+```
+
+```js
+# webpack.common.config.js
+
+const productionConfig = require('./webpack.prod.conf')
+const developmentConfig = require('./webpack.dev.conf')
+const ExtractTextWebpackPlugin = require('extract-text-webpack-plugin')
+const HtmlWebpackPlugin = require('html-webpack-plugin')
+const merge = require('webpack-merge')
+const path = require('path')
+const webpack = require('webpack')
+
+const generateConfig = env => {
+    const extractLess = new ExtractTextWebpackPlugin({
+        filename: 'css/[name]-bundle-[hash:5].css',
+    })
+
+    const scriptLoader = ['babel-loader']
+        .concat(env === 'production'
+            ? []
+            : [{
+                loader: 'eslint-loader',
+                options: {
+                    formatter: require('eslint-friendly-formatter')
+                }
+            }]
+        )
+    const cssLoaders = [
+        {
+            loader: 'css-loader',
+            options: {
+                importLoaders: 2,
+                sourceMap: env === 'development'
+            }
+        },
+        {
+            loader: 'postcss-loader',
+            options: {
+                ident: 'postcss',
+                sourceMap: env === 'development',
+                plugins: [
+                    require('postcss-cssnext')()
+                ].concat(
+                    env === 'production'
+                    ? require('postcss-sprites')({
+                        spritePath: 'dist/assets/imgs/sprites',
+                        retina: true
+                    })
+                    : []
+                )
+            }
+        },
+        {
+            loader: 'less-loader',
+            options: {
+                sourceMap: env === 'development'
+            }
+        }
+    ]
+    const styleLoader = env === 'production'
+        ? extractLess.extract({
+            fallback: 'style-loader',
+            use: cssLoaders
+        })
+        : [{
+            loader: 'style-loader'
+        }].concat(cssLoaders)
+
+    const fileLoader = path => {
+        return env === 'development'
+        ? [{
+            loader: 'file-loader',
+            options: {
+                name: '[name]-[hash:5].[ext]',
+                outputPath: path
+            }
+        }]
+        : [{
+            loader: 'url-loader',
+            options: {
+                name: '[name]-[hash:5].[ext]',
+                limit: 1000,
+                outputPath: path
+            }
+        }]
+    }
+
+    return {
+        entry: {
+            app: './src/app.js'
+        },
+
+        output: {
+            path: path.resolve(__dirname, '../dist'),
+            publicPath: '/',
+            filename: 'js/[name]-bundle-[hash:5].js'
+        },
+
+        resolve: {
+            alias: {
+                jquery$: path.resolve(__dirname, '../src/libs/jquery.min.js')
+            }
+        },
+
+        module: {
+            rules: [
+                {
+                    test:/\.js$/,
+                    include: [path.resolve(__dirname, '../src')],
+                    exclude: [path.resolve(__dirname, '../src/libs')],
+                    use: scriptLoader
+                },
+
+                {
+                    test: /\.less$/,
+                    use: styleLoader
+                },
+
+                {
+                    test: /\.(png|jpg|jpeg|gif)$/,
+                    use: fileLoader('assets/imgs/').concat(
+                        env === 'production'
+                        ? {
+                            loader: 'img-loader',
+                            options: {
+                                pngquant: {
+                                    quality: 80
+                                }
+                            }
+                        }
+                        : []
+                    )
+                },
+
+                {
+                    test:/\.(eot|woff2?|ttf|svg)$/,
+                    use: fileLoader('assets/imgs/')
+                }
+            ]
+        },
+
+        plugins: [
+            extractLess,
+
+            new HtmlWebpackPlugin({
+                filename: 'index.html',
+                template: './index.html',
+                minify: {
+                    collapseWhitespace: true
+                }
+            }),
+
+            new webpack.ProvidePlugin({
+                $: 'jquery'
+            })
+        ]
+    }
+}
+
+module.exports = env => {
+    let config = env === 'production'
+        ? productionConfig
+        : developmentConfig
+
+    return merge(generateConfig(env), config)
+}
+
+
+
+# server.js
+
+const webpack = require('webpack');
+const express = require('express');
+const opn = require('opn');
+
+const aapp = express()
+const port = 3000
+
+const webpackDevMiddleware = requrie('webpack-dev-middleware')
+const webpackHotMiddleware = require('webpack-hot-middleware')
+const proxyMiddleware = require('http-proxy-middleware')
+const historyApiFallback = require('connect-history-api-fallback')
+
+const config = require('./webpack.common.config.js')('development')
+const compiler = webpack(config)  # 执行我们的配置，得到一个compile
+
+
+const proxyTable = require('./proxy')
+
+for(let context in proxyTable){
+	app.use(proxyMiddleware(context, proxyTable[context]))
+}
+
+app.use(historyApiFallback(require('./historyfallback')))
+
+app.use(webpackDevMiddleware(compiler, {
+	publicPath: config.output.publicPath
+}))
+
+app.use(webpackHotMiddleware(compiler))
+
+app.listen(port, ()=>{
+	console.info('success',port);
+	opn('http://localhost:' + port)
+})
+
+# historyfallback.js # 单独提取出原配置文件中 history-api-fallback 的部分
+
+ module.exports = {
+ 	htmlAcceptHeaders:['text/html', 'application/xhtml+xml'],  # 告诉插件我们需要什么样的请求头
+ 	rewrites: [
+ 		{
+ 			from: /!\//.....,
+ 			to: function(ctx){...}
+ 		}
+ 	]
+ }
+
+
+# proxy.js # 单独提取出原配置文件中 devServer 的配置部分
+
+module.exports = {
+		'/.+':{
+		...
+		}
+}
+
+
+# package.json -> scripts
+
+"start": "node build/server.js"
+
+```
+
+## 打包优化
+
+### 打包结果优化
+
+官方工具： Offical Analyse Tool
+第三方： webpack-bundle-analyzer
+
+#### offical analyse tool
+
+```bash
+webpack --profile --json > stats.json
+
+上传stats.json文件到 http://webpack.github.io/analyse/ 获取建议
+```
+
+#### webpack-bundle-analyzer 社区可视化方案
+
+方式有二：
+
+1. 插件方式。引入BundleAnalyzerPlugin
+
+#### webpack和多页面应用
+
+> 多页面应用：一般情况下使用Vue和React都是单页面应用，但我们也会结合PHP，jsp等传统页面
+
+特点：
+
+- 多入口entry
+- 多页面html
+- 每个页面不同的chunk
+- 每个页面不同的参数
+
+实现方式：
+方式一：多配置
+方式二：共享配置
+
+多配置：
+
+webpack3.1.0
+parallel-webpack
+
+优点：
+
+1. 使用parallel-webpack来提高打包的速度
+2. 配置更加独立，灵活
+
+缺点：
+
+1. 不能多页面之间共享代码
+
+共享配置
+
+优点：
+
+1. 可以共享各个entry之间的共用代码
+
+缺点：
+
+1. 打包速度慢
+2. 输出内容复杂
+
+## 框架配合
+
+### webpack配合React
+
+#### create-react-app
+
+> 使用react-scripts封装无法修改
+
+使用
+
+```bash
+npx create-react-app my-project  # npm 5.2+
+```
+
+项目结构
+官方脚本
+功能
+自定义配置
+
+- yarn start
+- yarn test
+- yarn build
+- yarn eject
+
+create-react-app 脚手架
+
+支持的功能
+
+- 支持es6和jsx
+- 支持动态import
+- 支持fetch，通过polyfill实现
+- 支持proxy
+- 支持postcss: 根目录下有.postcss.config
+- 支持eslint
+- 支持单元测试
+
+不支持的功能
+
+- React Hot Reloading, 只支持css的MHR，没有支持React的MHR
+- css预处理器，less，sass
+
+通过在项目目录下新建 .env.local文件修改默认端口，以及其他环境变量
+
+使用自定义配置，上述完成之后，我们还缺少什么？
+
+- Proxy配置
+- less配置
+- React热更新配置
+
+> 如何配置代理
+
+在package.json中进行配置
+
+```json
+{
+	“proxy”：{
+		"/api": {
+			"target": "http://www.baidu.com",
+			"changeOrigin": true
+		}
+	}
+
+}
+```
+
+> 如何添加less
+
+npm安装，webpack释放配置
+
+> 如何配置React热更新
+
+使用react-hot-loader，在entry之中添加“'react-hot-loader/patch',”，在module中配置，在main.js中引入
+
+## 课程总结
+
+> 什么是webpack，和grunt和gulp有什么不同？
+
+webpack是一个模块打包器，可以递归的打包项目中的所有模块，最终生成几个打包之后的文件，不同在于它支持code-spliting, 模块化（AMD，esm， commonjs），全局分析
+
+> 什么是bundle，什么是chunk， 什么是module
+
+bundle是由webpack打包出来的文件，chunk是指webpack在进行模块的依赖分析的时候，代码分割出来的代码块，module是开发中的单个模块。
+
+> 什么是loader，什么是plugin
+
+处理文件的时候才会用到loader。loader是用来告诉webpack如何转化处理某一类型的文件， 并且引入到打包出的文件中
+plugin是用来自定义webpack打包过程的方式，一个插件是含有apply方法的一个对象，通过这个方法可以参与到整个webpack打包的各个流程（生命周期）
+
+> 如何自动生成一个webpack配置
+
+webpack-cli
+
+> webpack-dev-server和http服务器比如nginx有什么区别
+
+wbepack-dev-server（express+webpack-hot-middleware）使用内存来存储webpack开发环境下的打包文件，并且可以使用模块热更新，它比传统的http服务对开发更加高效简单
+
+> 什么是模块热更新
+
+模块热更新是wbepack的一个功能，它可以使得代码修改过后不用刷新浏览器就可以更新，是高级版的自动刷新浏览器，实现是通过websocket来监听回调实现的
+
+> 什么是长缓存？在webpack中如何做到长缓存优化？
+
+浏览器在用户访问页面的时候，为了加快加载速度，会对用户访问的静态资源进行存储，但是每一次代码升级或是更新，都需要浏览器去下载新的代码，最方便的更新方式就是引入新的文件名称。在webpack中可以在output给输出的文件指定chunkhash，并且分离经常更新的代码和框架代码。通过NamedModulesPlugin或者是HashedModuleIdsPlugin使再次打包文件名不变
+
+> 什么是tree-shaking， css可以tree-shaking吗
+
+tree-shaking是指在打包过程中去除那些引入了，但是没有被用到的死代码。在webpack中tree-shaking是通过uglifyJSPlugin来tree-shaking js，css需要用到Purify-CSS。
+
+- 一切皆为模块
+- 急速的调试响应速度
+- 优化应该自动完成

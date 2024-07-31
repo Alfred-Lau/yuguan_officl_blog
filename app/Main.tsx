@@ -1,8 +1,9 @@
-import Link from '@/components/Link'
-import Tag from '@/components/Tag'
-import siteMetadata from '@/data/siteMetadata'
-import { formatDate } from 'pliny/utils/formatDate'
-import NewsletterForm from 'pliny/ui/NewsletterForm'
+import NewsletterForm from 'pliny/ui/NewsletterForm';
+import { formatDate } from 'pliny/utils/formatDate';
+
+import Link from '@/components/Link';
+import Tag from '@/components/Tag';
+import siteMetadata from '@/data/siteMetadata';
 
 const MAX_DISPLAY = 5
 
@@ -75,9 +76,9 @@ export default function Home({ posts }) {
           <Link
             href="/blog"
             className="text-primary-500 hover:text-primary-600 dark:hover:text-primary-400"
-            aria-label="All posts"
+            aria-label="全部标签"
           >
-            All Posts &rarr;
+            全部标签 &rarr;
           </Link>
         </div>
       )}

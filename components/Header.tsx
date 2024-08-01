@@ -14,7 +14,7 @@ const Header = () => {
         <Link href="/" aria-label={siteMetadata.headerTitle}>
           <div className="flex items-center justify-between">
             <div className="mr-3">
-            <Image src='https://datafun.bitou.tech/_next/image?url=https%3A%2F%2Frender.bitou.tech%2Fimgs%2Favatar.png&w=384&q=75' width={45} height={45} alt='avatar yuguan bitou' />
+            <Image src='https://render.bitou.tech/imgs/avatar.png' width={45} height={45} alt='avatar yuguan bitou' />
             </div>
             {typeof siteMetadata.headerTitle === 'string' ? (
               <div className="hidden h-6 text-2xl font-semibold sm:block">

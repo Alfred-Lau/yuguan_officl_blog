@@ -1,6 +1,6 @@
 /** @type {import("pliny/config").PlinyConfig } */
 const siteMetadata = {
-  title: '榆关 的 Blog',
+  title: '榆关',
   author: '榆关',
   headerTitle: '榆关的博客',
   description: '保持深度，保持体系，日拱一卒，功不唐捐',

@@ -8,7 +8,7 @@ const siteMetadata = {
   theme: 'system', // system, dark or light
   siteUrl: 'https://datafun.bitou.tech/',
   siteRepo: 'https://github.com/Alfred-Lau',
-  siteLogo: `https://datafun.bitou.tech/_next/image?url=https%3A%2F%2Frender.bitou.tech%2Fimgs%2Favatar.png&w=384&q=75`,
+  siteLogo: `https://render.bitou.tech/imgs/avatar.png`,
   socialBanner: `${process.env.BASE_PATH || ''}/static/images/twitter-card.png`,
   mastodon: 'https://mastodon.social/@mastodonuser',
   email: 'jian.liu@icloud.com',

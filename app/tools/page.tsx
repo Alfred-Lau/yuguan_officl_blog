@@ -14,7 +14,7 @@ export default function Projects() {
             Tools
           </h1>
           <p className="text-lg leading-7 text-gray-500 dark:text-gray-400">
-            Showcase your projects with a hero image (16 x 9)
+            专注于AI和流量增长工具的开发，提高工作效率，提供更好的工作体验。
           </p>
         </div>
         <div className="container py-12">

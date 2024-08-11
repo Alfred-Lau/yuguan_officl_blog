@@ -1,0 +1,55 @@
+---
+title: "使用 langchain0.2.x 接入通义千问"
+date: "2023-08-05"
+lastmod: "2023-08-05"
+tags: ["AI 应用开发", "langchain"]
+draft: false
+summary: "本文介绍如何使用 langchain0.2.x 接入通义千问。"
+images: ["/static/images/twitter-card.png"]
+---
+
+## langchain 0.2 版本的更新
+
+通义千问是一个基于知识图谱的智能问答系统，它可以回答用户提出的问题。langchain 是一个基于知识图谱的自然语言处理工具，它可以帮助开发者快速构建智能问答系统。langchain 0.2 版本的更新主要包括以下内容：
+
+### 接入通义千问
+
+```python
+from getpass import getpass
+import os
+from langchain_community.llms import Tongyi
+DASHSCOPE_API_KEY = getpass()
+
+os.environ["DASHSCOPE_API_KEY"] = DASHSCOPE_API_KEY
+# invoke 代替了 prredict，用于调用通义千问接口，返回结果，支持多轮对话，
+Tongyi().invoke("What NFL team won the Super Bowl in the year Justin Bieber was born?")
+
+
+
+```
+
+#### 关于 getpass
+
+`getpass` 是 Python 中的一个模块，主要用于安全地提示用户输入密码，而不会在屏幕上显示输入的字符。这在编写需要用户身份验证的脚本时非常有用。以下是如何使用 `getpass` 模块的基本步骤：
+
+1. **导入模块**：
+   首先，你需要导入 `getpass` 模块。
+
+   ```python
+   import getpass
+   ```
+
+2. **使用 `getpass()` 函数**：
+   然后，你可以使用 `getpass.getpass()` 函数提示用户输入密码。这个函数会自动隐藏用户输入的字符。
+
+   ```python
+   password = getpass.getpass('请输入密码：')
+   print('密码已接收。')
+   ```
+
+   注意：在某些环境（如 IDLE 或 Jupyter Notebook）中，`getpass()` 可能无法正常工作，因为它依赖于终端来隐藏输入。在这些情况下，你可能需要考虑使用其他方法来安全地处理密码。
+
+3. **处理密码**：
+   获取密码后，你可以根据需要对其进行处理，例如验证用户身份或将其作为参数传递给其他函数。
+
+这就是使用 `getpass` 模块的基本方法。它提供了一个简单而安全的方式来处理敏感信息，如密码。记住，在处理用户凭据时，始终要确保遵循最佳的安全实践。

@@ -13,7 +13,7 @@ const projectsData: Project[] = [
     href: "https://bitou.tech",
   },
   {
-    title: "bitou-cli：黑屏工具",
+    title: "bitou-cli：命令行工具",
     description: `通过其扩展机制，你可以轻松的扩展 Pen 的主题 UI 和构建能力`,
     imgSrc: "https://render.bitou.tech/imgs/bitoulogo.jpg",
     href: "/blog/the-time-machine",
@@ -23,8 +23,8 @@ const projectsData: Project[] = [
     description: `What if you could look up any information in the world? Webpages, images, videos
     and more. Google has many features to help you find exactly what you're looking
     for.`,
-    imgSrc: "/static/images/google.png",
-    href: "https://www.google.com",
+    imgSrc: "https://render.bitou.tech/imgs/iShot_2024-08-23_01.23.27.png",
+    href: "https://github.com/Alfred-Lau/bitou-extension.git",
   },
   {
     title: "The Time Machine",
@@ -39,7 +39,7 @@ const projectsData: Project[] = [
     description: `What if you could look up any information in the world? Webpages, images, videos
     and more. Google has many features to help you find exactly what you're looking
     for.`,
-    imgSrc: "/static/images/google.png",
+    imgSrc: "https://render.bitou.tech/imgs/iShot_2024-08-23_01.23.27.png",
     href: "https://www.google.com",
   },
   {
